@@ -1,0 +1,105 @@
+name: Deploy VPS
+
+on:
+  repository_dispatch:
+    types: [deploy]
+
+concurrency:
+  group: deploy-vps-shared
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            SERVICE="${{ github.event.client_payload.service }}"
+            DIR="${{ github.event.client_payload.dir }}"
+            PORT="${{ github.event.client_payload.port }}"
+            PREV_FILE="/tmp/prev_commit_${SERVICE}.txt"
+
+            cd $DIR
+            git rev-parse HEAD > $PREV_FILE
+            PREV=$(cat $PREV_FILE)
+            git pull origin master
+
+            if git diff $PREV HEAD -- package-lock.json | grep -q .; then
+              echo "Dependencies changed → npm install"
+              npm install
+            else
+              echo "No changes → skip"
+            fi
+
+            npm run build
+            pm2 reload $SERVICE
+
+      - name: Health Check & Rollback
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            SERVICE="${{ github.event.client_payload.service }}"
+            DIR="${{ github.event.client_payload.dir }}"
+            PORT="${{ github.event.client_payload.port }}"
+            PREV_FILE="/tmp/prev_commit_${SERVICE}.txt"
+
+            MAX_RETRIES=12
+            RETRY_INTERVAL=5
+            for i in $(seq 1 $MAX_RETRIES); do
+              echo "Health check attempt $i/$MAX_RETRIES..."
+              if curl -sf http://localhost:${PORT}/health; then
+                echo "Health check passed"
+                exit 0
+              fi
+              sleep $RETRY_INTERVAL
+            done
+
+            echo "Rolling back..."
+            cd $DIR
+            git reset --hard $(cat $PREV_FILE)
+            npm install
+            npm run build
+            pm2 reload $SERVICE
+            exit 1
+
+      - name: Notify Discord
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            COLOR=5763719
+            TITLE="Deploy thành công 🚀"
+            STATUS="✅ CI/CD SUCCESS"
+          else
+            COLOR=15548997
+            TITLE="Deploy thất bại 💥"
+            STATUS="❌ CI/CD FAILED"
+          fi
+
+          curl --retry 3 --retry-delay 2 \
+          -H "Content-Type: application/json" \
+          -X POST \
+          -d "{
+            \"content\": \"$STATUS\",
+            \"embeds\": [{
+              \"title\": \"$TITLE\",
+              \"color\": $COLOR,
+              \"fields\": [
+                { \"name\": \"Service\", \"value\": \"${{ github.event.client_payload.service }}\", \"inline\": true },
+                { \"name\": \"Actor\", \"value\": \"${{ github.event.client_payload.actor }}\", \"inline\": true },
+                { \"name\": \"Commit\", \"value\": \"${{ github.event.client_payload.commit }}\", \"inline\": false },
+                { \"name\": \"Message\", \"value\": \"${{ github.event.client_payload.message }}\", \"inline\": false }
+              ]
+            }]
+          }" \
+          ${{ secrets.DISCORD_WEBHOOK_URL }}
