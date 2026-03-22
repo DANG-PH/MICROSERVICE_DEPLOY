@@ -31,9 +31,12 @@ jobs:
             PREV=$(cat $PREV_FILE)
             git pull origin master
 
-            if git diff $PREV HEAD -- package-lock.json | grep -q .; then
+            if [ ! -d "node_modules" ] || [ ! -f "node_modules/.bin/nest" ]; then
+              echo "node_modules missing → force npm install"
+              npm install 
+            elif git diff $PREV HEAD -- package-lock.json | grep -q .; then
               echo "Dependencies changed → npm install"
-              npm install
+              npm install 
             else
               echo "No changes → skip"
             fi
