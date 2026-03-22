@@ -112,6 +112,9 @@ jobs:
             STATUS="❌ CI/CD FAILED"
           fi
 
+          # Thời gian UTC+7
+          DEPLOY_TIME=$(TZ='Asia/Ho_Chi_Minh' date '+%d/%m/%Y %H:%M:%S')
+
           curl --retry 3 --retry-delay 2 \
           -H "Content-Type: application/json" \
           -X POST \
@@ -123,8 +126,10 @@ jobs:
               \"fields\": [
                 { \"name\": \"Service\", \"value\": \"${{ github.event.client_payload.service }}\", \"inline\": true },
                 { \"name\": \"Actor\", \"value\": \"${{ github.event.client_payload.actor }}\", \"inline\": true },
+                { \"name\": \"Thời gian\", \"value\": \"$DEPLOY_TIME (UTC+7)\", \"inline\": true },
                 { \"name\": \"Commit\", \"value\": \"${{ github.event.client_payload.commit }}\", \"inline\": false },
-                { \"name\": \"Message\", \"value\": \"${{ github.event.client_payload.message }}\", \"inline\": false }
+                { \"name\": \"Message\", \"value\": \"${{ github.event.client_payload.message }}\", \"inline\": false },
+                { \"name\": \"🔍 Xem log\", \"value\": \"[Bấm vào đây](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\", \"inline\": false }
               ]
             }]
           }" \
