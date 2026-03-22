@@ -32,12 +32,12 @@ jobs:
             git pull origin master
 
             if [ ! -d "node_modules" ] || [ ! -f "node_modules/.bin/nest" ]; then
-              echo "node_modules missing → force npm install"
+              echo "node_modules missing → force npm ci"
               rm -rf node_modules  
-              npm install 
+              npm ci 
             elif git diff $PREV HEAD -- package-lock.json | grep -q .; then
-              echo "Dependencies changed → npm install"
-              npm install 
+              echo "Dependencies changed → npm ci"
+              npm ci 
             else
               echo "No changes → skip"
             fi
@@ -72,7 +72,7 @@ jobs:
             echo "Rolling back..."
             cd $DIR
             git reset --hard $(cat $PREV_FILE)
-            npm install
+            npm ci
             npm run build
             pm2 reload $SERVICE
             exit 1
