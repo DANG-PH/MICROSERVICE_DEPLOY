@@ -56,8 +56,30 @@ jobs:
             SERVICE="${{ github.event.client_payload.service }}"
             DIR="${{ github.event.client_payload.dir }}"
             PORT="${{ github.event.client_payload.port }}"
+            SKIP="${{ github.event.client_payload.skip_health_check }}"
             PREV_FILE="/tmp/prev_commit_${SERVICE}.txt"
 
+            # Skip health check nếu service không có HTTP
+            if [ "$SKIP" = "true" ]; then
+              echo "Skipping health check for $SERVICE (no HTTP server)"
+              
+              # Chỉ check pm2 process có running không
+              sleep 3
+              if pm2 show $SERVICE | grep -q "online"; then
+                echo "✅ $SERVICE is online"
+                exit 0
+              else
+                echo "❌ $SERVICE is not online, rolling back..."
+                cd $DIR
+                git reset --hard $(cat $PREV_FILE)
+                npm ci --registry=https://registry.npmmirror.com
+                npm run build
+                pm2 reload $SERVICE
+                exit 1
+              fi
+            fi
+
+            # Health check bình thường cho HTTP services
             MAX_RETRIES=12
             RETRY_INTERVAL=5
             for i in $(seq 1 $MAX_RETRIES); do
