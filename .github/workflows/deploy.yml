@@ -33,6 +33,7 @@ jobs:
 
             if [ ! -d "node_modules" ] || [ ! -f "node_modules/.bin/nest" ]; then
               echo "node_modules missing → force npm install"
+              rm -rf node_modules  
               npm install 
             elif git diff $PREV HEAD -- package-lock.json | grep -q .; then
               echo "Dependencies changed → npm install"
