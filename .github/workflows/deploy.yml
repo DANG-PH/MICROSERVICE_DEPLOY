@@ -32,12 +32,12 @@ jobs:
             git pull origin master
 
             if [ ! -d "node_modules" ] || [ ! -f "node_modules/.bin/nest" ]; then
-              echo "node_modules missing → force npm ci"
+              echo "node_modules missing → force npm install --prefer-offline"
               rm -rf node_modules  
-              npm ci 
+              npm install --prefer-offline 
             elif git diff $PREV HEAD -- package-lock.json | grep -q .; then
-              echo "Dependencies changed → npm ci"
-              npm ci --prefer-offline 
+              echo "Dependencies changed → npm install"
+              npm install --prefer-offline 
             else
               echo "No changes → skip"
             fi
