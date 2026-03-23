@@ -74,10 +74,11 @@ jobs:
 
               echo "❌ $SERVICE is not online, rolling back..."
               cd $DIR
+              pm2 stop $SERVICE  # stop trước
               git reset --hard $(cat $PREV_FILE)
               npm install --prefer-offline
               npm run build
-              pm2 reload $SERVICE
+              pm2 start $SERVICE  # start lại sau khi build xong
               exit 1
             fi
 
