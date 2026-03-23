@@ -63,20 +63,22 @@ jobs:
             if [ "$SKIP" = "true" ]; then
               echo "Skipping health check for $SERVICE (no HTTP server)"
               
-              # Chỉ check pm2 process có running không
-              sleep 3
-              if pm2 show $SERVICE | grep -q "online"; then
-                echo "✅ $SERVICE is online"
-                exit 0
-              else
-                echo "❌ $SERVICE is not online, rolling back..."
-                cd $DIR
-                git reset --hard $(cat $PREV_FILE)
-                npm install --prefer-offline
-                npm run build
-                pm2 reload $SERVICE
-                exit 1
-              fi
+              for i in 1 2 3 4 5; do
+                sleep 3
+                if pm2 show $SERVICE | grep -q "online"; then
+                  echo "✅ $SERVICE is online"
+                  exit 0
+                fi
+                echo "⏳ Waiting for $SERVICE... attempt $i/5"
+              done
+
+              echo "❌ $SERVICE is not online, rolling back..."
+              cd $DIR
+              git reset --hard $(cat $PREV_FILE)
+              npm install --prefer-offline
+              npm run build
+              pm2 reload $SERVICE
+              exit 1
             fi
 
             # Health check bình thường cho HTTP services
