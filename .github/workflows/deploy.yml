@@ -37,7 +37,7 @@ jobs:
               npm ci 
             elif git diff $PREV HEAD -- package-lock.json | grep -q .; then
               echo "Dependencies changed → npm ci"
-              npm ci 
+              npm ci --prefer-offline 
             else
               echo "No changes → skip"
             fi
@@ -72,7 +72,7 @@ jobs:
                 echo "❌ $SERVICE is not online, rolling back..."
                 cd $DIR
                 git reset --hard $(cat $PREV_FILE)
-                npm ci --registry=https://registry.npmmirror.com
+                npm install --prefer-offline
                 npm run build
                 pm2 reload $SERVICE
                 exit 1
@@ -94,7 +94,7 @@ jobs:
             echo "Rolling back..."
             cd $DIR
             git reset --hard $(cat $PREV_FILE)
-            npm ci
+            npm install --prefer-offline
             npm run build
             pm2 reload $SERVICE
             exit 1
