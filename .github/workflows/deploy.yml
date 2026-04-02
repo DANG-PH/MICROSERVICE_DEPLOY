@@ -16,7 +16,7 @@ jobs:
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.HOST }}
+          host: ${{ github.event.client_payload.port == 'docker' && secrets.HOST_VPS1 || format('{0},{1}', secrets.HOST_VPS2, secrets.HOST_VPS3) }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
@@ -31,24 +31,29 @@ jobs:
             PREV=$(cat $PREV_FILE)
             git pull origin master
 
-            if [ ! -d "node_modules" ] || [ ! -f "node_modules/.bin/nest" ]; then
-              echo "node_modules missing → force npm install --prefer-offline"
-              rm -rf node_modules  
-              npm install --prefer-offline 
-            elif git diff $PREV HEAD -- package-lock.json | grep -q .; then
-              echo "Dependencies changed → npm install"
-              npm install --prefer-offline 
+            if [ "$PORT" = "docker" ]; then
+              echo "Docker service → docker compose up"
+              docker compose up -d --force-recreate nginx
             else
-              echo "No changes → skip"
-            fi
+              if [ ! -d "node_modules" ] || [ ! -f "node_modules/.bin/nest" ]; then
+                echo "node_modules missing → force npm install --prefer-offline"
+                rm -rf node_modules
+                npm install --prefer-offline
+              elif git diff $PREV HEAD -- package-lock.json | grep -q .; then
+                echo "Dependencies changed → npm install"
+                npm install --prefer-offline
+              else
+                echo "No changes → skip"
+              fi
 
-            npm run build
-            pm2 reload $SERVICE
+              npm run build
+              pm2 reload $SERVICE
+            fi
 
       - name: Health Check & Rollback
         uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.HOST }}
+          host: ${{ github.event.client_payload.port == 'docker' && secrets.HOST_VPS1 || format('{0},{1}', secrets.HOST_VPS2, secrets.HOST_VPS3) }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           script: |
@@ -59,10 +64,24 @@ jobs:
             SKIP="${{ github.event.client_payload.skip_health_check }}"
             PREV_FILE="/tmp/prev_commit_${SERVICE}.txt"
 
-            # Skip health check nếu service không có HTTP
+            if [ "$PORT" = "docker" ]; then
+              for i in 1 2 3 4 5; do
+                sleep 3
+                if docker compose -f $DIR/docker-compose.yml ps nginx | grep -q "Up"; then
+                  echo "✅ nginx container is Up"
+                  exit 0
+                fi
+                echo "⏳ Waiting for nginx container... attempt $i/5"
+              done
+              echo "❌ nginx container failed, rolling back..."
+              cd $DIR
+              git reset --hard $(cat $PREV_FILE)
+              docker compose up -d --force-recreate nginx
+              exit 1
+            fi
+
             if [ "$SKIP" = "true" ]; then
               echo "Skipping health check for $SERVICE (no HTTP server)"
-              
               for i in 1 2 3 4 5; do
                 sleep 3
                 if pm2 show $SERVICE | grep -q "online"; then
@@ -71,18 +90,16 @@ jobs:
                 fi
                 echo "⏳ Waiting for $SERVICE... attempt $i/5"
               done
-
               echo "❌ $SERVICE is not online, rolling back..."
               cd $DIR
-              pm2 stop $SERVICE  # stop trước
+              pm2 stop $SERVICE
               git reset --hard $(cat $PREV_FILE)
               npm install --prefer-offline
               npm run build
-              pm2 start $SERVICE  # start lại sau khi build xong
+              pm2 start $SERVICE
               exit 1
             fi
 
-            # Health check bình thường cho HTTP services
             MAX_RETRIES=12
             RETRY_INTERVAL=5
             for i in $(seq 1 $MAX_RETRIES); do
@@ -115,7 +132,6 @@ jobs:
             STATUS="❌ CI/CD FAILED"
           fi
 
-          # Thời gian UTC+7
           DEPLOY_TIME=$(TZ='Asia/Ho_Chi_Minh' date '+%d/%m/%Y %H:%M:%S')
 
           curl --retry 3 --retry-delay 2 \
@@ -127,11 +143,11 @@ jobs:
               \"title\": \"$TITLE\",
               \"color\": $COLOR,
               \"fields\": [
-                { \"name\": \"Service\", \"value\": \"${{ github.event.client_payload.service }}\", \"inline\": true },
-                { \"name\": \"Actor\", \"value\": \"${{ github.event.client_payload.actor }}\", \"inline\": true },
-                { \"name\": \"Thời gian\", \"value\": \"$DEPLOY_TIME (UTC+7)\", \"inline\": true },
-                { \"name\": \"Commit\", \"value\": \"${{ github.event.client_payload.commit }}\", \"inline\": false },
-                { \"name\": \"Message\", \"value\": \"${{ github.event.client_payload.message }}\", \"inline\": false },
+                { \"name\": \"Service\",    \"value\": \"${{ github.event.client_payload.service }}\", \"inline\": true },
+                { \"name\": \"Actor\",      \"value\": \"${{ github.event.client_payload.actor }}\",   \"inline\": true },
+                { \"name\": \"Thời gian\",  \"value\": \"$DEPLOY_TIME (UTC+7)\",                       \"inline\": true },
+                { \"name\": \"Commit\",     \"value\": \"${{ github.event.client_payload.commit }}\",  \"inline\": false },
+                { \"name\": \"Message\",    \"value\": \"${{ github.event.client_payload.message }}\", \"inline\": false },
                 { \"name\": \"🔍 Xem log\", \"value\": \"[Bấm vào đây](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\", \"inline\": false }
               ]
             }]
