@@ -21,6 +21,12 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             set -e
+
+            echo "====== DEBUG HOST ======"
+            echo "HOSTNAME: $(hostname)"
+            echo "IP: $(curl -s ifconfig.me)"
+            echo "========================"
+
             SERVICE="${{ github.event.client_payload.service }}"
             DIR="${{ github.event.client_payload.dir }}"
             PORT="${{ github.event.client_payload.port }}"
@@ -58,6 +64,12 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             set -e
+
+            echo "====== DEBUG HOST ======"
+            echo "HOSTNAME: $(hostname)"
+            echo "IP: $(curl -s ifconfig.me)"
+            echo "========================"
+
             SERVICE="${{ github.event.client_payload.service }}"
             DIR="${{ github.event.client_payload.dir }}"
             PORT="${{ github.event.client_payload.port }}"
