@@ -33,6 +33,8 @@ jobs:
             PREV_FILE="/tmp/prev_commit_${SERVICE}.txt"
 
             cd $DIR
+            git reset --hard HEAD
+            git clean -fd
             git rev-parse HEAD > $PREV_FILE
             PREV=$(cat $PREV_FILE)
             git pull origin master
