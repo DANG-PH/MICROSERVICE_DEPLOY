@@ -30,6 +30,7 @@ jobs:
             SERVICE="${{ github.event.client_payload.service }}"
             DIR="${{ github.event.client_payload.dir }}"
             PORT="${{ github.event.client_payload.port }}"
+            LANG="${{ github.event.client_payload.lang }}"   
             PREV_FILE="/tmp/prev_commit_${SERVICE}.txt"
 
             cd $DIR
@@ -42,6 +43,12 @@ jobs:
             if [ "$PORT" = "docker" ]; then
               echo "Docker service → docker compose up"
               docker compose up -d --force-recreate nginx
+
+            elif [ "$LANG" = "go" ]; then
+              echo "Go service → go build"
+              go build -o $SERVICE ./cmd/api/main.go
+              pm2 restart $SERVICE
+
             else
               if [ ! -d "node_modules" ] || [ ! -f "node_modules/.bin/nest" ]; then
                 echo "node_modules missing → force npm install --prefer-offline"
@@ -75,6 +82,7 @@ jobs:
             SERVICE="${{ github.event.client_payload.service }}"
             DIR="${{ github.event.client_payload.dir }}"
             PORT="${{ github.event.client_payload.port }}"
+            LANG="${{ github.event.client_payload.lang }}"   
             SKIP="${{ github.event.client_payload.skip_health_check }}"
             PREV_FILE="/tmp/prev_commit_${SERVICE}.txt"
 
@@ -108,8 +116,12 @@ jobs:
               cd $DIR
               pm2 stop $SERVICE
               git reset --hard $(cat $PREV_FILE)
-              npm install --prefer-offline
-              npm run build
+              if [ "$LANG" = "go" ]; then
+                go build -o $SERVICE ./cmd/api/main.go
+              else
+                npm install --prefer-offline
+                npm run build
+              fi
               pm2 start $SERVICE
               exit 1
             fi
@@ -128,9 +140,14 @@ jobs:
             echo "Rolling back..."
             cd $DIR
             git reset --hard $(cat $PREV_FILE)
-            npm install --prefer-offline
-            npm run build
-            pm2 reload $SERVICE
+            if [ "$LANG" = "go" ]; then
+              go build -o $SERVICE ./cmd/api/main.go
+              pm2 restart $SERVICE
+            else
+              npm install --prefer-offline
+              npm run build
+              pm2 reload $SERVICE
+            fi
             exit 1
 
       - name: Notify Discord
