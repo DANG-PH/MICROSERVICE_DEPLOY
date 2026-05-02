@@ -46,6 +46,7 @@ jobs:
 
             elif [ "$LANG" = "go" ]; then
               echo "Go service → go build"
+              export PATH=$PATH:/usr/local/go/bin
               go build -o $SERVICE ./cmd/api/main.go
               pm2 restart $SERVICE
 
@@ -117,6 +118,7 @@ jobs:
               pm2 stop $SERVICE
               git reset --hard $(cat $PREV_FILE)
               if [ "$LANG" = "go" ]; then
+                export PATH=$PATH:/usr/local/go/bin
                 go build -o $SERVICE ./cmd/api/main.go
               else
                 npm install --prefer-offline
@@ -141,6 +143,7 @@ jobs:
             cd $DIR
             git reset --hard $(cat $PREV_FILE)
             if [ "$LANG" = "go" ]; then
+              export PATH=$PATH:/usr/local/go/bin
               go build -o $SERVICE ./cmd/api/main.go
               pm2 restart $SERVICE
             else
